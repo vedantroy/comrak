@@ -769,16 +769,16 @@ impl<'o> HtmlFormatter<'o> {
             // for the Slate patch
             NodeValue::InlineMath(ref literal) => {
                 if entering {
-                    self.output.write(b"<inlinemath>")?;
-                    self.output.write(literal)?;
-                    self.output.write(b"</inlinemath>")?;
+                    self.output.write_all(b"<inlinemath>")?;
+                    self.output.write_all(literal)?;
+                    self.output.write_all(b"</inlinemath>")?;
                 }
             }
             NodeValue::DisplayMath(ref literal) => {
                 if entering {
-                    self.output.write(b"<displaymath>")?;
-                    self.output.write(literal)?;
-                    self.output.write(b"</displaymath>")?;
+                    self.output.write_all(b"<displaymath>")?;
+                    self.output.write_all(literal)?;
+                    self.output.write_all(b"</displaymath>")?;
                 }
             }
         }

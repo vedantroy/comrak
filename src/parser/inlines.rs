@@ -524,7 +524,7 @@ impl<'a, 'r, 'o, 'd, 'i, 'c, 'subj> Subject<'a, 'r, 'o, 'd, 'i, 'c, 'subj> {
         }
     }
 
-    pub fn scan_to_closing_dollar(&mut self, opendollarlength: usize) -> Option<usize> {
+    pub fn scan_to_closing_dollars(&mut self, opendollarlength: usize) -> Option<usize> {
         while self.peek_char().map_or(false, |&c| c != b'$') {
             self.pos += 1;
         }
@@ -555,7 +555,7 @@ impl<'a, 'r, 'o, 'd, 'i, 'c, 'subj> Subject<'a, 'r, 'o, 'd, 'i, 'c, 'subj> {
         let opendollars = self.take_while(b'$');
         let startpos = self.pos;
         let endpos = match opendollars {
-            1 | 2 => self.scan_to_closing_dollar(opendollars),
+            1 | 2 => self.scan_to_closing_dollars(opendollars),
             // We cannot have a math node if we start with more than 2 dollars
             // So: "$$$hello$ will not create math"
             // BUT: "$hello$$$" will
@@ -867,8 +867,54 @@ impl<'a, 'r, 'o, 'd, 'i, 'c, 'subj> Subject<'a, 'r, 'o, 'd, 'i, 'c, 'subj> {
         }
     }
 
+    // TODO: Better name than `slate_math`
+    pub fn scan_to_closing_slate_math(&mut self, closechar: u8) -> Option<usize> {
+        loop {
+            while self.peek_char().map_or(false, |&c| c != b'\\') {
+                self.pos += 1;
+            }
+            if let Some(c) = self.peek_char_n(1).map(|c| *c) {
+                println!("c: {}", c);
+                self.pos += 1;
+                if c == closechar {
+                    // it's a match! advance the scanner
+                    self.pos += 1;
+                    // \) or \] should not be part of the buffer
+                    return Some(self.pos - 2);
+                }
+                // it's a dud (we hit \x where x != openchar), continue
+            } else {
+                // we've encountered end of input, no match
+                return None;
+            }
+        }
+    }
+
     pub fn handle_backslash(&mut self) -> &'a AstNode<'a> {
         self.pos += 1;
+
+        // Handle Slate's \( \), and \[, \] syntaxes
+        if self.peek_char().map_or(false, |&c| c == b'(' || c == b'[') {
+            // This is safe b/c if it was `None` we wouldn't enter this if stmt
+            let c = *self.peek_char().unwrap();
+            let savepos = self.pos;
+            // consume the ( or [
+            self.pos += 1;
+            if let Some(endpos) =
+                self.scan_to_closing_slate_math(if c == b'(' { b')' } else { b']' })
+            {
+                let buf = self.input[savepos + 1..endpos].to_vec();
+                return match c {
+                    b'(' => make_inline(self.arena, NodeValue::InlineMath(buf)),
+                    b'[' => make_inline(self.arena, NodeValue::DisplayMath(buf)),
+                    _ => unreachable!(),
+                };
+            } else {
+                // couldn't find a matching \( or \[, reset the scanner
+                self.pos = savepos;
+            }
+        }
+
         if self.peek_char().map_or(false, |&c| ispunct(c)) {
             self.pos += 1;
             // TODO

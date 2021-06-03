@@ -57,7 +57,8 @@ fn compare_strs(output: &str, expected: &str, kind: &str) {
 
 fn slate_html(input: &str, expected: &str) {
     let arena = Arena::new();
-    let options = ComrakOptions::default();
+    let mut options = ComrakOptions::default();
+    options.extension.footnotes = true;
 
     let root = parse_document(&arena, input, &options);
     let mut output = vec![];
@@ -417,7 +418,8 @@ fn images() {
 
 #[test]
 fn reference_links() {
-    html(
+    // disable roundtrip testing -- see the footnotes test
+    slate_html(
         concat!(
             "This [is] [legit], [very][honestly] legit.\n",
             "\n",
@@ -666,8 +668,9 @@ fn header_ids() {
 
 #[test]
 fn footnotes() {
-    html_opts!(
-        [extension.footnotes],
+    // We have to use slate_html here b/c the roundtrip test fails since
+    // it escapes the "[", which causes it to be rendered as math
+    slate_html(
         concat!(
             "Here is a[^nowhere] footnote reference,[^1] and another.[^longnote]\n",
             "\n",
@@ -962,8 +965,9 @@ fn safety() {
 
 #[test]
 fn link_backslash_requires_punct() {
+    // disable roundtrip testing - see the footnotes test
     // Test should probably be in the spec.
-    html("[a](\\ b)", "<p>[a](\\ b)</p>\n");
+    slate_html("[a](\\ b)", "<p>[a](\\ b)</p>\n");
 }
 
 // Again, at least some of these cases are not covered by the reference
@@ -1063,11 +1067,13 @@ fn case_insensitive_safety() {
 #[test]
 fn slate_inline_math_basic() {
     slate_html("$ $", "<p><inlinemath> </inlinemath></p>\n");
+    slate_html(r#"\( \)"#, "<p><inlinemath> </inlinemath></p>\n");
 }
 
 #[test]
 fn slate_display_math_basic() {
     slate_html("$$ $$", "<p><displaymath> </displaymath></p>\n");
+    slate_html(r#"\[ \]"#, "<p><displaymath> </displaymath></p>\n");
 }
 
 #[test]
@@ -1087,7 +1093,17 @@ fn slate_math_edgecases() {
     // bold takes priority over math?? (probably not amazing but whatever)
     slate_html(
         "**heyyyy, i like math: $ math $ yup**",
-        "<p><strong>heyyyy, i like math: $ math $ yup</strong></p>",
+        "<p><strong>heyyyy, i like math: $ math $ yup</strong></p>\n",
+    );
+
+    // do nothing if the backslash is escaped
+    slate_html(r#"\\[ \]"#, "<p>\\[ ]</p>\n");
+    // do nothing if there is no closing
+    slate_html(r#"\[ hello"#, "<p>[ hello</p>\n");
+    // ignore bold/strikethrough inside math
+    slate_html(
+        r#"\[ **hello** \]"#,
+        "<p><displaymath> **hello** </displaymath></p>\n",
     );
 }
 
