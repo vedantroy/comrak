@@ -55,6 +55,16 @@ fn compare_strs(output: &str, expected: &str, kind: &str) {
     assert_eq!(output, expected);
 }
 
+fn slate_html(input: &str, expected: &str) {
+    let arena = Arena::new();
+    let options = ComrakOptions::default();
+
+    let root = parse_document(&arena, input, &options);
+    let mut output = vec![];
+    html::format_document(root, &options, &mut output).unwrap();
+    compare_strs(&String::from_utf8(output).unwrap(), expected, "regular");
+}
+
 fn html(input: &str, expected: &str) {
     html_opts(input, expected, |_| ());
 }
@@ -1049,6 +1059,38 @@ fn case_insensitive_safety() {
     );
 }
 
+// Slate tests
+#[test]
+fn slate_inline_math_basic() {
+    slate_html("$ $", "<p><inlinemath> </inlinemath></p>\n");
+}
+
+#[test]
+fn slate_display_math_basic() {
+    slate_html("$$ $$", "<p><displaymath> </displaymath></p>\n");
+}
+
+#[test]
+fn slate_math_edgecases() {
+    // math must start with either 1 or 2 dollar signs
+    slate_html("$$$ $$", "<p>$$$ $$</p>\n");
+    slate_html("$$$ $$$", "<p>$$$ $$$</p>\n");
+
+    // but it can end with excess dollar signs
+    slate_html("$$ $$$", "<p><displaymath> </displaymath>$</p>\n");
+    slate_html("$ $$$", "<p><inlinemath> </inlinemath>$$</p>\n");
+
+    // do nothing if there are no closing dollars
+    slate_html("$$ hello", "<p>$$ hello</p>\n");
+    slate_html("$ hello", "<p>$ hello</p>\n");
+
+    // bold takes priority over math?? (probably not amazing but whatever)
+    slate_html(
+        "**heyyyy, i like math: $ math $ yup**",
+        "<p><strong>heyyyy, i like math: $ math $ yup</strong></p>",
+    );
+}
+
 #[test]
 fn exercise_full_api() {
     let arena = ::Arena::new();
@@ -1184,8 +1226,8 @@ fn exercise_full_api() {
         ::nodes::NodeValue::FootnoteReference(name) => {
             let _: &Vec<u8> = name;
         }
-        ::nodes::NodeValue::InlineMath(_) | ::nodes::NodeValue::DisplayMath(_) => {
-            panic!("Not supported. These are slate-specific extensions.");
+        ::nodes::NodeValue::InlineMath(buff) | ::nodes::NodeValue::DisplayMath(buff) => {
+            let _: &Vec<u8> = buff;
         }
     }
 }

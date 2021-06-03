@@ -765,8 +765,21 @@ impl<'o> HtmlFormatter<'o> {
                     }
                 }
             }
-            NodeValue::InlineMath(_) | NodeValue::DisplayMath(_) => {
-                panic!("Cannot render inline or display math. These only work in Slate files!")
+            // These are not valid HTML tags -- they are only used for testing purposes
+            // for the Slate patch
+            NodeValue::InlineMath(ref literal) => {
+                if entering {
+                    self.output.write(b"<inlinemath>")?;
+                    self.output.write(literal)?;
+                    self.output.write(b"</inlinemath>")?;
+                }
+            }
+            NodeValue::DisplayMath(ref literal) => {
+                if entering {
+                    self.output.write(b"<displaymath>")?;
+                    self.output.write(literal)?;
+                    self.output.write(b"</displaymath>")?;
+                }
             }
         }
         Ok(false)
