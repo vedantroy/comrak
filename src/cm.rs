@@ -654,6 +654,9 @@ impl<'a, 'o> CommonMarkFormatter<'a, 'o> {
                     self.write_all(b"]").unwrap();
                 }
             }
+            NodeValue::InlineMath(_) | NodeValue::DisplayMath(_) => {
+                panic!("Inline math & display math are not supported for rendering to CommonMark. These are slate specific extensions!")
+            }
         };
         true
     }

@@ -1184,5 +1184,8 @@ fn exercise_full_api() {
         ::nodes::NodeValue::FootnoteReference(name) => {
             let _: &Vec<u8> = name;
         }
+        ::nodes::NodeValue::InlineMath(_) | ::nodes::NodeValue::DisplayMath(_) => {
+            panic!("Not supported. These are slate-specific extensions.");
+        }
     }
 }

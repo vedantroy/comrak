@@ -765,6 +765,9 @@ impl<'o> HtmlFormatter<'o> {
                     }
                 }
             }
+            NodeValue::InlineMath(_) | NodeValue::DisplayMath(_) => {
+                panic!("Cannot render inline or display math. These only work in Slate files!")
+            }
         }
         Ok(false)
     }

@@ -112,6 +112,7 @@ impl<'a, 'r, 'o, 'd, 'i, 'c, 'subj> Subject<'a, 'r, 'o, 'd, 'i, 'c, 'subj> {
             '\0' => return false,
             '\r' | '\n' => new_inl = Some(self.handle_newline()),
             '`' => new_inl = Some(self.handle_backticks()),
+            '$' => new_inl = Some(self.handle_dollar_sign()),
             '\\' => new_inl = Some(self.handle_backslash()),
             '&' => new_inl = Some(self.handle_entity()),
             '<' => new_inl = Some(self.handle_pointy_brace()),
@@ -519,6 +520,65 @@ impl<'a, 'r, 'o, 'd, 'i, 'c, 'subj> Subject<'a, 'r, 'o, 'd, 'i, 'c, 'subj> {
                 let buf = &self.input[startpos..endpos - openticks];
                 let buf = strings::normalize_code(buf);
                 make_inline(self.arena, NodeValue::Code(buf))
+            }
+        }
+    }
+
+    pub fn scan_to_closing_dollar(&mut self, opendollarlength: usize) -> Option<usize> {
+        loop {
+            while self.peek_char().map_or(false, |&c| c != b'$') {
+                self.pos += 1;
+            }
+            // We've reached the end of the input w/o hitting a closing dollarsign
+            if self.pos >= self.input.len() {
+                return None;
+            }
+            let numdollars = self.take_while(b'$');
+            // $$inline math$ -> displays as inline math
+            // $$display math$$ -> displays as display math
+            // $$$display math$$ -> displays as display math
+            let numclosingdollars = std::cmp::max(opendollarlength, numdollars);
+            // If the string is: "$$display math$$$$$another sentence"
+            // the scanner is here:               |  ^
+            // we want it to be here:             ^
+            self.pos -= numdollars - numclosingdollars;
+            if numdollars == opendollarlength {
+                return Some(self.pos);
+            }
+        }
+    }
+
+    // Slate extension to handle $ for inline math and $$ for display
+    pub fn handle_dollar_sign(&mut self) -> &'a AstNode<'a> {
+        let startpos = self.pos;
+        // Get the number of contiguous dollar signs
+        let opendollars = self.take_while(b'$');
+        if opendollars > 2 {
+            // We've encountered more than 2 dollar signs in a row,
+            // we advance the scanner to be start at the 2nd to last dollarsign
+            // and turn the previous ones into text
+            let advance_by = opendollars - 2;
+            self.pos = startpos + advance_by;
+            return make_inline(self.arena, NodeValue::Text(vec![b'$'; advance_by]));
+        }
+        // The position after the last opening dollar sign
+        let startpos = self.pos;
+        let endpos = self.scan_to_closing_dollar(opendollars);
+
+        match endpos {
+            None => {
+                self.pos = startpos;
+                make_inline(self.arena, NodeValue::Text(vec![b'$'; opendollars]))
+            }
+            Some(endpos) => {
+                let buf = &self.input[startpos..endpos - opendollars];
+                match opendollars {
+                    1 => make_inline(self.arena, NodeValue::InlineMath(buf.to_vec())),
+                    2 => make_inline(self.arena, NodeValue::DisplayMath(buf.to_vec())),
+                    // This is safe b/c `opendollars` is always at least 1
+                    // (since we only enter `handle_dollar_signs` if we see a $)
+                    _ => unreachable!(),
+                }
             }
         }
     }

@@ -116,6 +116,12 @@ pub enum NodeValue {
     /// **Inline**.  A [code span](https://github.github.com/gfm/#code-spans).
     Code(Vec<u8>),
 
+    /// **Inline**  Display math. This is an extension for Slate.
+    DisplayMath(Vec<u8>),
+
+    /// **Inline**  Inline math. This is an extension for Slate.
+    InlineMath(Vec<u8>),
+
     /// **Inline**.  [Raw HTML](https://github.github.com/gfm/#raw-html) contained inline.
     HtmlInline(Vec<u8>),
 
