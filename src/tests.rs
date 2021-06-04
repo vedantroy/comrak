@@ -1090,10 +1090,10 @@ fn slate_math_edgecases() {
     slate_html("$$ hello", "<p>$$ hello</p>\n");
     slate_html("$ hello", "<p>$ hello</p>\n");
 
-    // bold takes priority over math?? (probably not amazing but whatever)
+    // math takes priority over bold
     slate_html(
         "**heyyyy, i like math: $ math $ yup**",
-        "<p><strong>heyyyy, i like math: $ math $ yup</strong></p>\n",
+        "<p><strong>heyyyy, i like math: <inlinemath>math</inlinemath> yup</strong></p>\n",
     );
 
     // do nothing if the backslash is escaped
@@ -1101,9 +1101,49 @@ fn slate_math_edgecases() {
     // do nothing if there is no closing
     slate_html(r#"\[ hello"#, "<p>[ hello</p>\n");
     // ignore bold/strikethrough inside math
+    // also, whitespace is trimmed
     slate_html(
         r#"\[ **hello** \]"#,
-        "<p><displaymath> **hello** </displaymath></p>\n",
+        "<p><displaymath>**hello**</displaymath></p>\n",
+    );
+}
+
+#[test]
+fn slate_math_multiline() {
+    // two $ in the same paragraph should cause math to render
+    slate_html(
+        r#"
+The quadratic formula is $
+q
+$ isn't that cool!"#,
+        "<p>The quadratic formula is <inlinemath>q</inlinemath> isn't that cool!</p>\n",
+    );
+
+    // same with \( \)
+    slate_html(
+        r#"
+The quadratic formula is \(
+q
+\) isn't that cool!"#,
+        "<p>The quadratic formula is <inlinemath>q</inlinemath> isn't that cool!</p>\n",
+    );
+
+    // and \[ \]
+    slate_html(
+        r#"
+The quadratic formula is \[
+q
+\] isn't that cool!"#,
+        "<p>The quadratic formula is <displaymath>q</displaymath> isn't that cool!</p>\n",
+    );
+
+    // and $$ $$
+    slate_html(
+        r#"
+The quadratic formula is $$
+q
+$$ isn't that cool!"#,
+        "<p>The quadratic formula is <displaymath>q</displaymath> isn't that cool!</p>\n",
     );
 }
 

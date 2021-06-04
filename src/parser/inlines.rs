@@ -81,6 +81,8 @@ impl<'a, 'r, 'o, 'd, 'i, 'c, 'subj> Subject<'a, 'r, 'o, 'd, 'i, 'c, 'subj> {
         };
         for &c in &[
             b'\n', b'\r', b'_', b'*', b'"', b'`', b'\\', b'&', b'<', b'[', b']', b'!',
+            // For Slate
+            b'$',
         ] {
             s.special_chars[c as usize] = true;
         }
@@ -569,6 +571,7 @@ impl<'a, 'r, 'o, 'd, 'i, 'c, 'subj> Subject<'a, 'r, 'o, 'd, 'i, 'c, 'subj> {
         };
         if let Some(endpos) = endpos {
             let buf = self.input[startpos..endpos - opendollars].to_vec();
+            let buf = strings::normalize_code(&buf);
             match opendollars {
                 1 => make_inline(self.arena, NodeValue::InlineMath(buf)),
                 2 => make_inline(self.arena, NodeValue::DisplayMath(buf)),
@@ -874,7 +877,6 @@ impl<'a, 'r, 'o, 'd, 'i, 'c, 'subj> Subject<'a, 'r, 'o, 'd, 'i, 'c, 'subj> {
                 self.pos += 1;
             }
             if let Some(c) = self.peek_char_n(1).map(|c| *c) {
-                println!("c: {}", c);
                 self.pos += 1;
                 if c == closechar {
                     // it's a match! advance the scanner
@@ -903,7 +905,8 @@ impl<'a, 'r, 'o, 'd, 'i, 'c, 'subj> Subject<'a, 'r, 'o, 'd, 'i, 'c, 'subj> {
             if let Some(endpos) =
                 self.scan_to_closing_slate_math(if c == b'(' { b')' } else { b']' })
             {
-                let buf = self.input[savepos + 1..endpos].to_vec();
+                let buf = &self.input[savepos + 1..endpos];
+                let buf = strings::normalize_code(buf);
                 return match c {
                     b'(' => make_inline(self.arena, NodeValue::InlineMath(buf)),
                     b'[' => make_inline(self.arena, NodeValue::DisplayMath(buf)),
