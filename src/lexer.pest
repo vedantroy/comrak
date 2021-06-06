@@ -1,5 +1,9 @@
 atx_heading_start = { "#"{1, 6} ~ (" " | "\t" | "\r" | "\n") }
 
+env_name = { ASCII_ALPHANUMERIC+ }
+open_latex_env = { "\\begin{" ~ env_name ~ "}" ~ (!("`" | "\r" | "\n" | "\x00") ~ ANY)* ~ ("\r" | "\n") }
+close_latex_env = { "\\end{" ~ env_name ~ "}" ~ ("\r" | "\n") }
+
 open_code_fence_backtick = _{ open_code_fence_backtick_match ~ (!("`" | "\r" | "\n" | "\x00") ~ ANY)* }
 open_code_fence_backtick_match = { "`"{3,} }
 open_code_fence_tilde = _{ open_code_fence_tilde_match ~ (!("\r" | "\n" | "\x00") ~ ANY)* }

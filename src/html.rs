@@ -490,6 +490,23 @@ impl<'o> HtmlFormatter<'o> {
                     self.output.write_all(b"</code></pre>\n")?;
                 }
             }
+            NodeValue::LatexEnvironment(ref nle) => {
+                // This is not a real HTML tag -- it is only for Slate tests
+                //if entering {
+                //    self.cr()?;
+                //    self.output.write_all(b"<latex-env>\n")?;
+                //} else {
+                //    self.cr()?;
+                //    self.output.write_all(b"</latex-env>\n")?;
+                //}
+
+                if entering {
+                    self.cr()?;
+                    self.output.write_all(b"<latex-environment>")?;
+                    self.output.write_all(&nle.literal)?;
+                    self.output.write_all(b"</latex-environment>")?;
+                }
+            }
             NodeValue::HtmlBlock(ref nhb) => {
                 if entering {
                     self.cr()?;

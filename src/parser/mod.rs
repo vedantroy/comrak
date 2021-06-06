@@ -20,6 +20,8 @@ use std::str;
 use strings;
 use typed_arena::Arena;
 
+use crate::nodes::NodeLatexEnvironment;
+
 const TAB_STOP: usize = 4;
 const CODE_INDENT: usize = 4;
 
@@ -668,6 +670,11 @@ impl<'a, 'o, 'c> Parser<'a, 'o, 'c> {
                         return (false, container, should_continue);
                     }
                 }
+                NodeValue::LatexEnvironment(..) => {
+                    if !self.parse_latex_env_prefix(line, container, ast, &mut should_continue) {
+                        return (false, container, should_continue);
+                    }
+                }
                 NodeValue::HtmlBlock(ref nhb) => {
                     if !self.parse_html_block_prefix(nhb.block_type) {
                         return (false, container, should_continue);
@@ -701,13 +708,14 @@ impl<'a, 'o, 'c> Parser<'a, 'o, 'c> {
 
     fn open_new_blocks(&mut self, container: &mut &'a AstNode<'a>, line: &[u8], all_matched: bool) {
         let mut matched: usize = 0;
+        let mut env_name = "";
         let mut nl: NodeList = NodeList::default();
         let mut sc: scanners::SetextChar = scanners::SetextChar::Equals;
         let mut maybe_lazy = matches!(self.current.data.borrow().value, NodeValue::Paragraph);
 
         while !matches!(
             container.data.borrow().value,
-            NodeValue::CodeBlock(..) | NodeValue::HtmlBlock(..)
+            NodeValue::CodeBlock(..) | NodeValue::HtmlBlock(..) | NodeValue::LatexEnvironment(..)
         ) {
             self.find_first_nonspace(line);
             let indented = self.indent >= CODE_INDENT;
@@ -763,6 +771,21 @@ impl<'a, 'o, 'c> Parser<'a, 'o, 'c> {
                 };
                 *container = self.add_child(*container, NodeValue::CodeBlock(ncb));
                 self.advance_offset(line, first_nonspace + matched - offset, false);
+            } else if !indented
+                && unwrap_into_2(
+                    scanners::open_latex_env(&line[self.first_nonspace..]),
+                    &mut env_name, &mut matched,
+                )
+            {
+                // Slate specific extension
+                let first_nonspace = self.first_nonspace;
+                let offset = self.offset;
+                let nle = NodeLatexEnvironment {
+                    begin_offset: first_nonspace - offset,
+                    environment_name: env_name.to_string(),
+                    literal: Vec::new(),
+                };
+                *container = self.add_child(*container, NodeValue::LatexEnvironment(nle));
             } else if !indented
                 && (unwrap_into(
                     scanners::html_block_start(&line[self.first_nonspace..]),
@@ -1062,6 +1085,49 @@ impl<'a, 'o, 'c> Parser<'a, 'o, 'c> {
         true
     }
 
+    // We parse latex environments very similarly to code blocks
+    fn parse_latex_env_prefix(
+        &mut self,
+        line: &[u8],
+        container: &'a AstNode<'a>,
+        ast: &mut Ast,
+        should_continue: &mut bool,
+    ) -> bool {
+        let (begin_offset, begin_tag_env_name) = match ast.value {
+            NodeValue::LatexEnvironment(ref nle) => (nle.begin_offset, &nle.environment_name),
+            _ => unreachable!(),
+        };
+
+        // If indent is more than 3, we must be inside an indented code block
+        // If the first char is not a '\' then we can't possibly have encountered an \end{envname}
+        let matched = if self.indent <= 3 && line[self.first_nonspace] == b'\\' {
+            scanners::close_latex_env(&line[self.first_nonspace..])
+        } else {
+            None
+        };
+
+        let found_closing = match matched {
+            Some((end_tag_env_name, _)) => end_tag_env_name == begin_tag_env_name,
+            None => false,
+        };
+
+        if found_closing {
+            let matched = matched.unwrap();
+            *should_continue = false;
+            self.advance_offset(line, matched.1, false);
+            self.current = self.finalize_borrowed(container, ast).unwrap();
+            false
+        } else {
+            // Trim leading spaces
+            let mut i = begin_offset;
+            while i > 0 && strings::is_space_or_tab(line[self.offset]) {
+                self.advance_offset(line, 1, true);
+                i -= 1;
+            }
+            true
+        }
+    }
+
     fn parse_html_block_prefix(&mut self, t: u8) -> bool {
         match t {
             1 | 2 | 3 | 4 | 5 => true,
@@ -1143,6 +1209,9 @@ impl<'a, 'o, 'c> Parser<'a, 'o, 'c> {
             && match container.data.borrow().value {
                 NodeValue::BlockQuote | NodeValue::Heading(..) | NodeValue::ThematicBreak => false,
                 NodeValue::CodeBlock(ref ncb) => !ncb.fenced,
+                // while this is redundant (consumed by `_ => true` case)
+                // let's be explicit in this foreign codebase :)
+                NodeValue::LatexEnvironment(..) => true,
                 NodeValue::Item(..) => {
                     container.first_child().is_some()
                         || container.data.borrow().start_line != self.line_number
@@ -1168,7 +1237,9 @@ impl<'a, 'o, 'c> Parser<'a, 'o, 'c> {
             }
 
             let add_text_result = match container.data.borrow().value {
-                NodeValue::CodeBlock(..) => AddTextResult::CodeBlock,
+                NodeValue::CodeBlock(..) | NodeValue::LatexEnvironment(..) => {
+                    AddTextResult::CodeBlock
+                }
                 NodeValue::HtmlBlock(ref nhb) => AddTextResult::HtmlBlock(nhb.block_type),
                 _ => AddTextResult::Otherwise,
             };
@@ -1350,6 +1421,22 @@ impl<'a, 'o, 'c> Parser<'a, 'o, 'c> {
                     *content = content[pos..].to_vec();
                 }
                 mem::swap(&mut ncb.literal, content);
+            }
+            NodeValue::LatexEnvironment(ref mut nle) => {
+                // Remove everything up to (and including) the first newline
+                // this gets rid of the initial \begin{tabbed}
+                println!("CONTENT: {:?}", String::from_utf8(content.to_vec()).unwrap());
+                let mut pos = 0;
+                while pos < content.len() {
+                    if strings::is_line_end_char(content[pos]) {
+                        break;
+                    }
+                    pos += 1;
+                }
+                assert!(pos < content.len());
+                println!("CONTENT: {:?}", String::from_utf8(content[pos..].to_vec()).unwrap());
+                *content = content[pos..].to_vec();
+                mem::swap(&mut nle.literal, content);
             }
             NodeValue::HtmlBlock(ref mut nhb) => {
                 mem::swap(&mut nhb.literal, content);

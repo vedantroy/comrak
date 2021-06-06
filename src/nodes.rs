@@ -66,6 +66,13 @@ pub enum NodeValue {
     /// which is not parsed as Markdown, although is HTML escaped.
     CodeBlock(NodeCodeBlock),
 
+    /// **Block**. A latex environment. This is a Slate extension. Contains raw text which
+    /// is not parsed as Markdown in the initial parse.
+    /// (It is later parsed into Markdown in a secondary parse -- this is an implementation
+    /// detail, the fastest thing to do would be to parse everything in 1 go but it is
+    /// much easier to write a parser that also does some post processing)
+    LatexEnvironment(NodeLatexEnvironment),
+
     /// **Block**. A [HTML block](https://github.github.com/gfm/#html-blocks).  Contains raw text
     /// which is neither parsed as Markdown nor HTML escaped.
     HtmlBlock(NodeHtmlBlock),
@@ -265,6 +272,33 @@ pub struct NodeCodeBlock {
     pub literal: Vec<u8>,
 }
 
+/// The metadata and data of a latex environment
+#[derive(Default, Debug, Clone)]
+pub struct NodeLatexEnvironment {
+    // This is `pub(crate)` b/c it's an implementation detail for the parser.
+    // It is the offset of the initial \begin{envname}
+    // It is used as follows:
+    //  \begin{tabbed}
+    //   <- these two spaces get trimmed off
+    // but leaving them out entirely is okay
+    //  \end{tabbed}
+    // will get transformed to
+    // <- these two spaces get trimmed off
+    // but leaving them out entirely is okay
+
+    // I think in practice this doesn't matter since
+    // Latex doesn't care about indentation?
+    pub(crate) begin_offset: usize,
+
+    /// The literal contents of the environment.  As the contents are not interpreted as Markdown at
+    /// all, they are contained within this structure, rather than inserted into a child inline of
+    /// any kind.
+    pub literal: Vec<u8>,
+
+    /// The name of the environment. E.g "tabbed" for \begin{tabbed}
+    pub environment_name: String,
+}
+
 /// The metadata of a heading.
 #[derive(Default, Debug, Clone, Copy)]
 pub struct NodeHeading {
@@ -300,6 +334,7 @@ impl NodeValue {
                 | NodeValue::DescriptionDetails
                 | NodeValue::Item(..)
                 | NodeValue::CodeBlock(..)
+                | NodeValue::LatexEnvironment(..)
                 | NodeValue::HtmlBlock(..)
                 | NodeValue::Paragraph
                 | NodeValue::Heading(..)

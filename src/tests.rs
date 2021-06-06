@@ -1148,6 +1148,18 @@ $$ isn't that cool!"#,
 }
 
 #[test]
+fn slate_latex_env() {
+    slate_html(
+        r#"
+\begin{tabbed}
+latex latex latex
+\end{tabbed}
+"#,
+        "<latex-environment>\nlatex latex latex\n</latex-environment>",
+    )
+}
+
+#[test]
 fn exercise_full_api() {
     let arena = ::Arena::new();
     let default_options = ::ComrakOptions::default();
@@ -1284,6 +1296,9 @@ fn exercise_full_api() {
         }
         ::nodes::NodeValue::InlineMath(buff) | ::nodes::NodeValue::DisplayMath(buff) => {
             let _: &Vec<u8> = buff;
+        }
+        ::nodes::NodeValue::LatexEnvironment(nle) => {
+            let _: Vec<u8> = nle.literal;
         }
     }
 }

@@ -77,6 +77,37 @@ pub fn open_code_fence(line: &[u8]) -> Option<usize> {
     search(Rule::open_code_fence, line)
 }
 
+fn latex_env(rule: Rule, line: &[u8]) -> Option<(&str, usize)> {
+    if let Ok(pairs) = Lexer::parse(rule, unsafe { str::from_utf8_unchecked(line) }) {
+        let end_stmt = pairs.last().unwrap();
+        let end_pos = end_stmt.as_span().end();
+        let env_name = end_stmt.into_inner().last().unwrap().as_span().as_str();
+        Some((env_name, end_pos))
+    } else {
+        None
+    }
+}
+
+// TODO: We need to do some hacks to implement arg parsing
+// (it is easy to do single line arg parsing, harder to do multiline)
+#[inline(always)]
+pub fn open_latex_env(line: &[u8]) -> Option<(&str, usize)> {
+    // latex blocks start with \begin{...args}
+    if line[0] != b'\\' {
+        return None;
+    }
+    latex_env(Rule::open_latex_env, line)
+}
+
+#[inline(always)]
+pub fn close_latex_env(line: &[u8]) -> Option<(&str, usize)> {
+    // latex environments end with \end{...args}
+    if line[0] != b'\\' {
+        return None;
+    }
+    latex_env(Rule::close_latex_env, line)
+}
+
 #[inline(always)]
 pub fn close_code_fence(line: &[u8]) -> Option<usize> {
     if line[0] != b'`' && line[0] != b'~' {
@@ -207,4 +238,27 @@ pub fn table_row_end(line: &[u8]) -> Option<usize> {
 #[inline(always)]
 pub fn dangerous_url(line: &[u8]) -> Option<usize> {
     search(Rule::dangerous_url, line)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{close_latex_env, open_code_fence, open_latex_env};
+
+    // This is for understanding how `open_code_fence` works
+    #[test]
+    fn test_open_code_fence() {
+        assert_eq!(open_code_fence(b"```rust\nfn foo();"), Some(3));
+    }
+
+    #[test]
+    fn test_open_latex_env() {
+        assert_eq!(open_latex_env(b"\\begin{}\n"), None);
+        assert_eq!(open_latex_env(b"\\begin{a}\n"), Some(("a", 10)));
+        assert_eq!(open_latex_env(b"\\begin{tabbed}\n"), Some(("tabbed", 15)));
+    }
+
+    #[test]
+    fn test_close_latex_env() {
+        assert_eq!(close_latex_env(b"\\end{a}\n"), Some(("a", 8)));
+    }
 }
