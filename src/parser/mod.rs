@@ -1425,7 +1425,6 @@ impl<'a, 'o, 'c> Parser<'a, 'o, 'c> {
             NodeValue::LatexEnvironment(ref mut nle) => {
                 // Remove everything up to (and including) the first newline
                 // this gets rid of the initial \begin{tabbed}
-                println!("CONTENT: {:?}", String::from_utf8(content.to_vec()).unwrap());
                 let mut pos = 0;
                 while pos < content.len() {
                     if strings::is_line_end_char(content[pos]) {
@@ -1434,7 +1433,6 @@ impl<'a, 'o, 'c> Parser<'a, 'o, 'c> {
                     pos += 1;
                 }
                 assert!(pos < content.len());
-                println!("CONTENT: {:?}", String::from_utf8(content[pos..].to_vec()).unwrap());
                 *content = content[pos..].to_vec();
                 mem::swap(&mut nle.literal, content);
             }
