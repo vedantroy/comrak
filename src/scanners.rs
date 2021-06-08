@@ -9,7 +9,7 @@
 
 */
 
-use crate::nodes::{LatexArgs,NodeCommand};
+use crate::nodes::{LatexArgs, NodeCommand};
 use pest::{iterators::Pairs, Parser};
 use std::str;
 use twoway::find_bytes;
@@ -164,15 +164,18 @@ pub fn latex_command(input: &[u8]) -> Option<(NodeCommand, usize)> {
         str::from_utf8_unchecked(input)
     }) {
         let cmd = pairs.last().unwrap();
-        let endpos = cmd.as_span().end();
+        let n_scanned = cmd.as_span().end();
         let mut children = cmd.into_inner();
         let name = children.next().unwrap().as_span().as_str().to_string();
         let (req, opt) = get_args(children);
-        Some((NodeCommand {
-            name,
-            required: req,
-            optional: opt,
-        }, endpos))
+        Some((
+            NodeCommand {
+                name,
+                required: req,
+                optional: opt,
+            },
+            n_scanned,
+        ))
     } else {
         None
     }
@@ -314,7 +317,7 @@ pub fn dangerous_url(line: &[u8]) -> Option<usize> {
 mod tests {
     use crate::{nodes::NodeCommand, scanners::OpenLatexEnvInfo};
 
-    use super::{close_latex_env, open_code_fence, open_latex_env, latex_command};
+    use super::{close_latex_env, latex_command, open_code_fence, open_latex_env};
 
     // This is for understanding how `open_code_fence` works
     #[test]
@@ -326,27 +329,45 @@ mod tests {
     fn test_latex_command() {
         // Here the `endpos` that is returned is "7" b/c the
         // rule matches EOI (end of input). This seems fine?
-        assert_eq!(latex_command(b"sqrt{3}"), Some((NodeCommand {
-            name: "sqrt".into(),
-            required: vec![(0, "3".into())],
-            optional: vec![],
-        }, 7)));
+        assert_eq!(
+            latex_command(b"sqrt{3}"),
+            Some((
+                NodeCommand {
+                    name: "sqrt".into(),
+                    required: vec![(0, "3".into())],
+                    optional: vec![],
+                },
+                7
+            ))
+        );
 
-        assert_eq!(latex_command(b"sqrt{3} hello!"), Some((NodeCommand {
-            name: "sqrt".into(),
-            required: vec![(0, "3".into())],
-            optional: vec![],
-        }, 8)));
+        assert_eq!(
+            latex_command(b"sqrt{3} hello!"),
+            Some((
+                NodeCommand {
+                    name: "sqrt".into(),
+                    required: vec![(0, "3".into())],
+                    optional: vec![],
+                },
+                8
+            ))
+        );
     }
 
     #[test]
     fn test_open_latex_env() {
         assert_eq!(open_latex_env(b"\\begin{}\n"), None);
-        assert_eq!(open_latex_env(b"\\begin{tabbed}\n"), Some((OpenLatexEnvInfo {
-            name: "tabbed".into(),
-            optional: vec![],
-            required: vec![],
-        }, 15)));
+        assert_eq!(
+            open_latex_env(b"\\begin{tabbed}\n"),
+            Some((
+                OpenLatexEnvInfo {
+                    name: "tabbed".into(),
+                    optional: vec![],
+                    required: vec![],
+                },
+                15
+            ))
+        );
         assert_eq!(
             open_latex_env(b"\\begin{tabbed}[arg]{arg2}\n"),
             Some((

@@ -582,7 +582,7 @@ impl<'a, 'r, 'o, 'd, 'i, 'c, 'subj> Subject<'a, 'r, 'o, 'd, 'i, 'c, 'subj> {
             // set the scanner position to after the opening dollar signs &
             // create a text node containing them
             self.pos = startpos;
-            return make_inline(self.arena, NodeValue::Text(vec![b'$'; opendollars]));
+            make_inline(self.arena, NodeValue::Text(vec![b'$'; opendollars]))
         }
     }
 
@@ -876,7 +876,7 @@ impl<'a, 'r, 'o, 'd, 'i, 'c, 'subj> Subject<'a, 'r, 'o, 'd, 'i, 'c, 'subj> {
             while self.peek_char().map_or(false, |&c| c != b'\\') {
                 self.pos += 1;
             }
-            if let Some(c) = self.peek_char_n(1).map(|c| *c) {
+            if let Some(c) = self.peek_char_n(1).copied() {
                 self.pos += 1;
                 if c == closechar {
                     // it's a match! advance the scanner
@@ -925,7 +925,13 @@ impl<'a, 'r, 'o, 'd, 'i, 'c, 'subj> Subject<'a, 'r, 'o, 'd, 'i, 'c, 'subj> {
         } else if !self.eof() && self.skip_line_end() {
             make_inline(self.arena, NodeValue::LineBreak)
         } else {
-            make_inline(self.arena, NodeValue::Text(b"\\".to_vec()))
+            match scanners::latex_command(&self.input[self.pos..]) {
+                Some((cmd, n_scanned)) => {
+                    self.pos += n_scanned;
+                    make_inline(self.arena, NodeValue::Command(cmd))
+                }
+                None => make_inline(self.arena, NodeValue::Text(b"\\".to_vec())),
+            }
         }
     }
 

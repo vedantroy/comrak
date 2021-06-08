@@ -1159,6 +1159,19 @@ latex latex latex
     )
 }
 
+// TODO: Any more cases to test here?
+#[test]
+fn slate_inline_command() {
+    slate_html(
+        r#"Hello this is a \ref"#,
+        "<p>Hello this is a <latex-command name=ref opt=[] req=[]/></p>\n",
+    );
+    slate_html(
+        r#"we have args \sqrt{3}[3]"#,
+        "<p>we have args <latex-command name=sqrt opt=[(1, \"3\")] req=[(0, \"3\")]/></p>\n",
+    );
+}
+
 #[test]
 fn exercise_full_api() {
     let arena = ::Arena::new();

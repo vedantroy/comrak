@@ -799,12 +799,13 @@ impl<'o> HtmlFormatter<'o> {
                 }
             }
             NodeValue::Command(ref cmd) => {
-                self.output.write_all(b"<")?;
-                self.output.write_all(cmd.name.as_bytes())?;
-                self.output.write_all(b" ")?;
-                self.output
-                    .write_all(format!("{:?} {:?}", cmd.required, cmd.optional).as_bytes())?;
-                self.output.write_all(b"/>")?;
+                if entering {
+                    let s = format!(
+                        "<latex-command name={} opt={:?} req={:?}/>",
+                        cmd.name, cmd.optional, cmd.required
+                    );
+                    self.output.write_all(s.as_bytes())?;
+                }
             }
         }
         Ok(false)
