@@ -1,5 +1,7 @@
 atx_heading_start = { "#"{1, 6} ~ (" " | "\t" | "\r" | "\n") }
 
+cmd_name = { ASCII_ALPHANUMERIC+ }
+latex_command = { cmd_name+ ~ latex_args ~ (" " | "\t" | NEWLINE | EOI) }
 latex_arg_curly = { "{" ~ (!"}" ~ ANY)* ~ "}" }
 latex_arg_square = { "[" ~ (!"]" ~ ANY)* ~ "]" }
 latex_args = _{ (latex_arg_curly | latex_arg_square)* }

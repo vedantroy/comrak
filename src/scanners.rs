@@ -9,7 +9,7 @@
 
 */
 
-use crate::nodes::LatexArgs;
+use crate::nodes::{LatexArgs,NodeCommand};
 use pest::{iterators::Pairs, Parser};
 use std::str;
 use twoway::find_bytes;
@@ -29,6 +29,7 @@ fn search(rule: Rule, line: &[u8]) -> Option<usize> {
         None
     }
 }
+
 #[inline(always)]
 fn is_match(rule: Rule, line: &[u8]) -> bool {
     Lexer::parse(rule, unsafe { str::from_utf8_unchecked(line) }).is_ok()
@@ -94,6 +95,9 @@ pub fn get_args(args: Pairs<'_, Rule>) -> (LatexArgs, LatexArgs) {
     let mut required = vec![];
 
     for (idx, arg) in args.enumerate() {
+        if let Rule::EOI = arg.as_rule() {
+            continue;
+        }
         let s = arg.as_str();
         // trim surrounding braces
         let s = &s[1..s.len() - 1];
@@ -152,6 +156,26 @@ pub fn close_latex_env(line: &[u8]) -> Option<(&str, usize)> {
         return None;
     }
     latex_env(Rule::close_latex_env, line)
+}
+
+#[inline(always)]
+pub fn latex_command(input: &[u8]) -> Option<(NodeCommand, usize)> {
+    if let Ok(pairs) = Lexer::parse(Rule::latex_command, unsafe {
+        str::from_utf8_unchecked(input)
+    }) {
+        let cmd = pairs.last().unwrap();
+        let endpos = cmd.as_span().end();
+        let mut children = cmd.into_inner();
+        let name = children.next().unwrap().as_span().as_str().to_string();
+        let (req, opt) = get_args(children);
+        Some((NodeCommand {
+            name,
+            required: req,
+            optional: opt,
+        }, endpos))
+    } else {
+        None
+    }
 }
 
 #[inline(always)]
@@ -288,9 +312,9 @@ pub fn dangerous_url(line: &[u8]) -> Option<usize> {
 
 #[cfg(test)]
 mod tests {
-    use crate::scanners::OpenLatexEnvInfo;
+    use crate::{nodes::NodeCommand, scanners::OpenLatexEnvInfo};
 
-    use super::{close_latex_env, open_code_fence, open_latex_env};
+    use super::{close_latex_env, open_code_fence, open_latex_env, latex_command};
 
     // This is for understanding how `open_code_fence` works
     #[test]
@@ -299,10 +323,30 @@ mod tests {
     }
 
     #[test]
+    fn test_latex_command() {
+        // Here the `endpos` that is returned is "7" b/c the
+        // rule matches EOI (end of input). This seems fine?
+        assert_eq!(latex_command(b"sqrt{3}"), Some((NodeCommand {
+            name: "sqrt".into(),
+            required: vec![(0, "3".into())],
+            optional: vec![],
+        }, 7)));
+
+        assert_eq!(latex_command(b"sqrt{3} hello!"), Some((NodeCommand {
+            name: "sqrt".into(),
+            required: vec![(0, "3".into())],
+            optional: vec![],
+        }, 8)));
+    }
+
+    #[test]
     fn test_open_latex_env() {
-        //assert_eq!(open_latex_env(b"\\begin{}\n"), None);
-        //assert_eq!(open_latex_env(b"\\begin{a}\n"), Some(("a", 10)));
-        //assert_eq!(open_latex_env(b"\\begin{tabbed}\n"), Some(("tabbed", 15)));
+        assert_eq!(open_latex_env(b"\\begin{}\n"), None);
+        assert_eq!(open_latex_env(b"\\begin{tabbed}\n"), Some((OpenLatexEnvInfo {
+            name: "tabbed".into(),
+            optional: vec![],
+            required: vec![],
+        }, 15)));
         assert_eq!(
             open_latex_env(b"\\begin{tabbed}[arg]{arg2}\n"),
             Some((

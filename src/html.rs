@@ -802,7 +802,8 @@ impl<'o> HtmlFormatter<'o> {
                 self.output.write_all(b"<")?;
                 self.output.write_all(cmd.name.as_bytes())?;
                 self.output.write_all(b" ")?;
-                self.output.write_all(format!("{:?} {:?}", cmd.required, cmd.optional).as_bytes())?;
+                self.output
+                    .write_all(format!("{:?} {:?}", cmd.required, cmd.optional).as_bytes())?;
                 self.output.write_all(b"/>")?;
             }
         }

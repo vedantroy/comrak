@@ -312,16 +312,16 @@ pub struct NodeLatexEnvironment {
 }
 
 /// The metadata of a heading.
-#[derive(Default, Debug, Clone)]
+#[derive(Default, Debug, Clone, PartialEq, Eq)]
 pub struct NodeCommand {
     /// The name of the command. I.e "foo" in \foobar[hello]{world}
     pub name: String,
 
     /// The optional arguments in a command. I.e (0, "hello") in \foobar[hello]{world}
-    pub optional: Vec<(usize, String)>,
+    pub optional: LatexArgs,
 
     /// The required arguments in a command. I.e (1, "world") in \foobar[hello]{world}
-    pub required: Vec<(usize, String)>,
+    pub required: LatexArgs,
 }
 
 /// The metadata of a heading.
