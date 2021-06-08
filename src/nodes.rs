@@ -295,9 +295,10 @@ pub struct NodeLatexEnvironment {
     // Latex doesn't care about indentation?
     pub(crate) begin_offset: usize,
 
-    /// The literal contents of the environment.  As the contents are not interpreted as Markdown at
-    /// all, they are contained within this structure, rather than inserted into a child inline of
-    /// any kind.
+    /// This is kind of a hack. We want to parse the inside of an environment as Markdown.
+    /// But. our strategy for parsing the inside of an environment is based on the fenced codeblock
+    /// parsing strategy, which interprets the inside of a fenced code block as raw bytes.
+    /// So we also do that & later, in a 2nd pass, call the parser again on the literal.
     pub literal: Vec<u8>,
 
     /// The name of the environment. E.g "tabbed" for \begin{tabbed}
