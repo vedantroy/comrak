@@ -1,7 +1,10 @@
 atx_heading_start = { "#"{1, 6} ~ (" " | "\t" | "\r" | "\n") }
 
+latex_arg_curly = { "{" ~ (!"}" ~ ANY)* ~ "}" }
+latex_arg_square = { "[" ~ (!"]" ~ ANY)* ~ "]" }
+latex_args = _{ (latex_arg_curly | latex_arg_square)* }
 env_name = { ASCII_ALPHANUMERIC+ }
-open_latex_env = { "\\begin{" ~ env_name ~ "}" ~ (!("`" | "\r" | "\n" | "\x00") ~ ANY)* ~ ("\r" | "\n") }
+open_latex_env = { "\\begin{" ~ env_name ~ "}" ~ latex_args ~ ("\r" | "\n") }
 close_latex_env = { "\\end{" ~ env_name ~ "}" ~ ("\r" | "\n") }
 
 open_code_fence_backtick = _{ open_code_fence_backtick_match ~ (!("`" | "\r" | "\n" | "\x00") ~ ANY)* }

@@ -126,6 +126,9 @@ pub enum NodeValue {
     /// **Inline**  Display math. This is an extension for Slate.
     DisplayMath(Vec<u8>),
 
+    /// **Inline** A LaTeX command. This is a Slate extension.
+    Command(NodeCommand),
+
     /// **Inline**  Inline math. This is an extension for Slate.
     InlineMath(Vec<u8>),
 
@@ -272,6 +275,8 @@ pub struct NodeCodeBlock {
     pub literal: Vec<u8>,
 }
 
+/// The arguments to a latex command
+pub type LatexArgs = Vec<(usize, String)>;
 /// The metadata and data of a latex environment
 #[derive(Default, Debug, Clone)]
 pub struct NodeLatexEnvironment {
@@ -296,7 +301,26 @@ pub struct NodeLatexEnvironment {
     pub literal: Vec<u8>,
 
     /// The name of the environment. E.g "tabbed" for \begin{tabbed}
-    pub environment_name: String,
+    pub name: String,
+
+    /// Optional args to the environment
+    pub optional: LatexArgs,
+
+    /// Required args to the environment
+    pub required: LatexArgs,
+}
+
+/// The metadata of a heading.
+#[derive(Default, Debug, Clone)]
+pub struct NodeCommand {
+    /// The name of the command. I.e "foo" in \foobar[hello]{world}
+    pub name: String,
+
+    /// The optional arguments in a command. I.e (0, "hello") in \foobar[hello]{world}
+    pub optional: Vec<(usize, String)>,
+
+    /// The required arguments in a command. I.e (1, "world") in \foobar[hello]{world}
+    pub required: Vec<(usize, String)>,
 }
 
 /// The metadata of a heading.

@@ -655,6 +655,7 @@ impl<'a, 'o> CommonMarkFormatter<'a, 'o> {
                 }
             }
             NodeValue::InlineMath(_)
+            | NodeValue::Command(..)
             | NodeValue::DisplayMath(_)
             | NodeValue::LatexEnvironment(_) => {
                 panic!("Inline math & display math / latex environment are not supported for rendering to CommonMark. These are slate specific extensions!")

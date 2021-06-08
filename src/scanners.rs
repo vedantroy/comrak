@@ -9,7 +9,8 @@
 
 */
 
-use pest::Parser;
+use crate::nodes::LatexArgs;
+use pest::{iterators::Pairs, Parser};
 use std::str;
 use twoway::find_bytes;
 
@@ -88,15 +89,60 @@ fn latex_env(rule: Rule, line: &[u8]) -> Option<(&str, usize)> {
     }
 }
 
-// TODO: We need to do some hacks to implement arg parsing
-// (it is easy to do single line arg parsing, harder to do multiline)
+pub fn get_args(args: Pairs<'_, Rule>) -> (LatexArgs, LatexArgs) {
+    let mut optional = vec![];
+    let mut required = vec![];
+
+    for (idx, arg) in args.enumerate() {
+        let s = arg.as_str();
+        // trim surrounding braces
+        let s = &s[1..s.len() - 1];
+        match arg.as_rule() {
+            // Doing the copy to `String` is fine here b/c we only call this function
+            // if we expect to get the arguments & collect them into a struct
+            Rule::latex_arg_curly => required.push((idx, s.to_string())),
+            Rule::latex_arg_square => optional.push((idx, s.to_string())),
+            // This should never happen at runtime insofar as lexer.pest is correct
+            _ => panic!("Unexpected rule type: {:?}", arg.as_rule()),
+        }
+    }
+
+    (required, optional)
+}
+
+#[derive(Debug, Default, Eq, PartialEq)]
+pub struct OpenLatexEnvInfo {
+    pub name: String,
+    pub optional: LatexArgs,
+    pub required: LatexArgs,
+}
+
+// We only support arguments on a single line
 #[inline(always)]
-pub fn open_latex_env(line: &[u8]) -> Option<(&str, usize)> {
-    // latex blocks start with \begin{...args}
+pub fn open_latex_env(line: &[u8]) -> Option<(OpenLatexEnvInfo, usize)> {
+    // latex blocks start with \begin{evname}
     if line[0] != b'\\' {
         return None;
     }
-    latex_env(Rule::open_latex_env, line)
+    if let Ok(pairs) = Lexer::parse(Rule::open_latex_env, unsafe {
+        str::from_utf8_unchecked(line)
+    }) {
+        let full_stmt = pairs.last().unwrap();
+        let end_pos = full_stmt.as_span().end();
+        let mut children = full_stmt.into_inner();
+        let name = children.next().unwrap().as_span().as_str().to_string();
+        let (req, opt) = get_args(children);
+        Some((
+            OpenLatexEnvInfo {
+                name,
+                required: req,
+                optional: opt,
+            },
+            end_pos,
+        ))
+    } else {
+        None
+    }
 }
 
 #[inline(always)]
@@ -242,6 +288,8 @@ pub fn dangerous_url(line: &[u8]) -> Option<usize> {
 
 #[cfg(test)]
 mod tests {
+    use crate::scanners::OpenLatexEnvInfo;
+
     use super::{close_latex_env, open_code_fence, open_latex_env};
 
     // This is for understanding how `open_code_fence` works
@@ -252,9 +300,20 @@ mod tests {
 
     #[test]
     fn test_open_latex_env() {
-        assert_eq!(open_latex_env(b"\\begin{}\n"), None);
-        assert_eq!(open_latex_env(b"\\begin{a}\n"), Some(("a", 10)));
-        assert_eq!(open_latex_env(b"\\begin{tabbed}\n"), Some(("tabbed", 15)));
+        //assert_eq!(open_latex_env(b"\\begin{}\n"), None);
+        //assert_eq!(open_latex_env(b"\\begin{a}\n"), Some(("a", 10)));
+        //assert_eq!(open_latex_env(b"\\begin{tabbed}\n"), Some(("tabbed", 15)));
+        assert_eq!(
+            open_latex_env(b"\\begin{tabbed}[arg]{arg2}\n"),
+            Some((
+                OpenLatexEnvInfo {
+                    name: "tabbed".into(),
+                    required: vec![(1, "arg2".into())],
+                    optional: vec![(0, "arg".into())]
+                },
+                26
+            ))
+        );
     }
 
     #[test]

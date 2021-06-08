@@ -21,6 +21,7 @@ use strings;
 use typed_arena::Arena;
 
 use crate::nodes::NodeLatexEnvironment;
+use crate::scanners::OpenLatexEnvInfo;
 
 const TAB_STOP: usize = 4;
 const CODE_INDENT: usize = 4;
@@ -708,7 +709,7 @@ impl<'a, 'o, 'c> Parser<'a, 'o, 'c> {
 
     fn open_new_blocks(&mut self, container: &mut &'a AstNode<'a>, line: &[u8], all_matched: bool) {
         let mut matched: usize = 0;
-        let mut env_name = "";
+        let mut open_latex_info = OpenLatexEnvInfo::default();
         let mut nl: NodeList = NodeList::default();
         let mut sc: scanners::SetextChar = scanners::SetextChar::Equals;
         let mut maybe_lazy = matches!(self.current.data.borrow().value, NodeValue::Paragraph);
@@ -774,7 +775,8 @@ impl<'a, 'o, 'c> Parser<'a, 'o, 'c> {
             } else if !indented
                 && unwrap_into_2(
                     scanners::open_latex_env(&line[self.first_nonspace..]),
-                    &mut env_name, &mut matched,
+                    &mut open_latex_info,
+                    &mut matched,
                 )
             {
                 // Slate specific extension
@@ -782,7 +784,10 @@ impl<'a, 'o, 'c> Parser<'a, 'o, 'c> {
                 let offset = self.offset;
                 let nle = NodeLatexEnvironment {
                     begin_offset: first_nonspace - offset,
-                    environment_name: env_name.to_string(),
+                    // These clones are clunky, but I doubt they are the bottleneck
+                    name: open_latex_info.name.clone(),
+                    optional: open_latex_info.optional.clone(),
+                    required: open_latex_info.required.clone(),
                     literal: Vec::new(),
                 };
                 *container = self.add_child(*container, NodeValue::LatexEnvironment(nle));
@@ -1094,7 +1099,7 @@ impl<'a, 'o, 'c> Parser<'a, 'o, 'c> {
         should_continue: &mut bool,
     ) -> bool {
         let (begin_offset, begin_tag_env_name) = match ast.value {
-            NodeValue::LatexEnvironment(ref nle) => (nle.begin_offset, &nle.environment_name),
+            NodeValue::LatexEnvironment(ref nle) => (nle.begin_offset, &nle.name),
             _ => unreachable!(),
         };
 

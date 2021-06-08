@@ -1300,5 +1300,10 @@ fn exercise_full_api() {
         ::nodes::NodeValue::LatexEnvironment(nle) => {
             let _: Vec<u8> = nle.literal;
         }
+        ::nodes::NodeValue::Command(cmd) => {
+            let _: String = cmd.name;
+            let _: Vec<(usize, String)> = cmd.optional;
+            let _: Vec<(usize, String)> = cmd.required;
+        }
     }
 }
